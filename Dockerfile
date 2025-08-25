@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
 RUN npm install --frozen-lockfile --ignore-scripts
 COPY . .
-RUN npm run build
+RUN npm run build --output ./build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
