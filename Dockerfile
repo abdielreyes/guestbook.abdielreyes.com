@@ -1,17 +1,19 @@
-# Dockerfile for SvelteKit + Vite app
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
-RUN npm install --frozen-lockfile --ignore-scripts
-COPY . .
-RUN npm run build --output ./build
 
-FROM node:20-alpine AS runner
+# Use a Node.js Alpine image for the builder stage
+FROM node:22-alpine AS builder
 WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.svelte-kit ./.svelte-kit
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+RUN npm prune --production
+
+# Use another Node.js Alpine image for the final stage
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=builder /app/build build/
+COPY --from=builder /app/node_modules node_modules/
+COPY package.json .
 EXPOSE 3000
-CMD ["npm", "run", "preview", "--", "--port", "3000", "--host"]
+ENV NODE_ENV=production
+CMD [ "node", "build" ]
