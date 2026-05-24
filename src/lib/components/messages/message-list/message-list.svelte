@@ -1,4 +1,5 @@
 <script lang="ts">
+	import moment from 'moment';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import MessageSquarePlusIcon from '@lucide/svelte/icons/message-square-plus';
@@ -16,6 +17,13 @@
 	function hasComments(message: App.Message) {
 		return message.comments && message.comments.length > 0;
 	}
+
+	function formatTime(created?: string): string {
+		if (!created) return '';
+		const m = moment(created);
+		const diffHours = moment().diff(m, 'hours');
+		return diffHours < 24 ? m.fromNow() : m.format('MMM D, YYYY · h:mm A');
+	}
 </script>
 
 {#if messages}
@@ -28,10 +36,15 @@
 						<Collapsible.Trigger
 							class="w-full p-2 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
 						>
-							<div class="font-mono flex-1 text-left break-words whitespace-normal">
-								~anon says: {message.body}
+							<div class="flex-1 text-left min-w-0">
+								<div class="font-mono break-words whitespace-normal">
+									~anon says: {message.body}
+								</div>
+								<div class="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 font-mono">
+									{formatTime(message.created)}
+								</div>
 							</div>
-							<div class="flex items-center justify-end gap-2">
+							<div class="flex items-center justify-end gap-2 shrink-0 pl-2">
 								<span class="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
 									<MessageSquareIcon class="w-4 h-4" />
 									{message.comments!.length}
@@ -45,19 +58,27 @@
 					{:else}
 						<!-- no comments: plain non-interactive row -->
 						<div class="w-full p-2 bg-zinc-300 dark:bg-zinc-700">
-							<div class="font-mono flex-1 text-left break-words whitespace-normal">
+							<div class="font-mono break-words whitespace-normal">
 								~anon says: {message.body}
+							</div>
+							<div class="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 font-mono">
+								{formatTime(message.created)}
 							</div>
 						</div>
 					{/if}
 
-					<!-- ── comments list (only when there are comments) ── -->
+					<!-- ── comments list ─────────────────────────────────── -->
 					{#if hasComments(message)}
 						<Collapsible.Content>
 							{#if message.expand?.comments}
 								{#each message.expand.comments as comment}
-									<div class="bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-sm font-mono border-l-2 border-zinc-300 dark:border-zinc-600">
-										~anon replied: {comment.body}
+									<div
+										class="bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-sm font-mono border-l-2 border-zinc-300 dark:border-zinc-600 flex justify-between items-start gap-3"
+									>
+										<span class="break-words min-w-0">~anon replied: {comment.body}</span>
+										<span class="text-[11px] text-zinc-400 dark:text-zinc-500 shrink-0 mt-0.5 font-mono">
+											{formatTime(comment.created)}
+										</span>
 									</div>
 								{/each}
 							{/if}
