@@ -7,10 +7,6 @@
 
 	let messages = $state<App.Message[]>([]);
 
-	onMount(async () => {
-		messages = await getMessages();
-	});
-
 	async function getMessages(): Promise<App.Message[]> {
 		const response = await pb.collection('messages').getFullList({
 			expand: 'comments',
@@ -19,9 +15,65 @@
 		return response as unknown as App.Message[];
 	}
 
-	async function refresh() {
-		messages = await getMessages();
+	/** Prepend a new message (called after the form creates one) */
+	function addMessage(msg: App.Message) {
+		messages = [msg, ...messages];
 	}
+
+	/** Splice a new comment into the matching message (called after the reply form sends) */
+	function addComment(messageId: string, comment: App.Comment) {
+		messages = messages.map((m) => {
+			if (m.id !== messageId) return m;
+			// Guard against duplicates (e.g. realtime event beat us here)
+			if (m.expand?.comments?.some((c) => c.id === comment.id)) return m;
+			return {
+				...m,
+				comments: [...(m.comments ?? []), comment.id],
+				expand: { comments: [...(m.expand?.comments ?? []), comment] }
+			};
+		});
+	}
+
+	onMount(() => {
+		// Initial load
+		getMessages().then((data) => (messages = data));
+
+		// Real-time subscription — keeps the list in sync for all open tabs/users
+		let unsubscribe: (() => void) | undefined;
+
+		pb.collection('messages')
+			.subscribe('*', async (e) => {
+				if (e.action === 'create') {
+					// Skip if we already added it optimistically
+					if (messages.some((m) => m.id === e.record.id)) return;
+					messages = [
+						{
+							...e.record,
+							comments: e.record['comments'] ?? [],
+							expand: { comments: [] }
+						} as App.Message,
+						...messages
+					];
+				} else if (e.action === 'update') {
+					// Re-fetch this one message to get the updated expand.comments
+					try {
+						const updated = await pb
+							.collection('messages')
+							.getOne(e.record.id, { expand: 'comments' });
+						messages = messages.map((m) =>
+							m.id === e.record.id ? (updated as unknown as App.Message) : m
+						);
+					} catch {
+						/* record may have been deleted between event and fetch */
+					}
+				} else if (e.action === 'delete') {
+					messages = messages.filter((m) => m.id !== e.record.id);
+				}
+			})
+			.then((fn) => (unsubscribe = fn));
+
+		return () => unsubscribe?.();
+	});
 </script>
 
 <div class="max-w-2xl mx-auto my-8 px-4">
@@ -31,14 +83,10 @@
 	>
 		<!-- ── header ─────────────────────────────────────────── -->
 		<header class="border-b border-white/10 pb-5 text-center">
-			<h1
-				class="text-white font-mono text-3xl font-light tracking-[0.25em] uppercase"
-			>
+			<h1 class="text-white font-mono text-3xl font-light tracking-[0.25em] uppercase">
 				guestbook
 			</h1>
-			<p class="font-mono text-xs text-white/30 tracking-widest mt-1">
-				abdielreyes.com
-			</p>
+			<p class="font-mono text-xs text-white/30 tracking-widest mt-1">abdielreyes.com</p>
 		</header>
 
 		<!-- ── intro blurb ─────────────────────────────────────── -->
@@ -53,16 +101,13 @@
 		</p>
 
 		<!-- ── new message form ────────────────────────────────── -->
-		<MessageForm {refresh} />
+		<MessageForm onSent={addMessage} />
 
 		<!-- ── message list ────────────────────────────────────── -->
-		<MessageList {messages} {refresh} />
+		<MessageList {messages} onCommentSent={addComment} />
 
 		<!-- ── footer ─────────────────────────────────────────── -->
 		<footer class="border-t border-white/10 pt-4 mt-2">
-			<div class="font-mono text-white/20 text-xs tracking-widest text-center select-none mb-2">
-				{'─'.repeat(36)}
-			</div>
 			<p
 				class="text-xs text-white/30 text-center font-mono"
 				style="font-family: 'Share Tech Mono', monospace;"
@@ -74,7 +119,10 @@
 				style="font-family: 'Share Tech Mono', monospace;"
 			>
 				Made with ❤️ by
-				<a href="https://abdielreyes.com" class="text-white/50 hover:text-white/80 underline transition-colors">
+				<a
+					href="https://abdielreyes.com"
+					class="text-white/50 hover:text-white/80 underline transition-colors"
+				>
 					Abdiel Reyes
 				</a>
 				· Source on

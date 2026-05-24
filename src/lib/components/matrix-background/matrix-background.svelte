@@ -46,6 +46,9 @@
 		}
 
 		resize();
+		// Immediate black fill — prevents the white flash before the first draw tick
+		ctx.fillStyle = '#000';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		window.addEventListener('resize', resize);
 		const id = setInterval(draw, 40);
 

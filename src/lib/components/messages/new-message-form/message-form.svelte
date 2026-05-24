@@ -2,42 +2,43 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import pb from '$lib/pocketbase';
+	import { MAX_MESSAGE_LENGTH } from '$lib/constants';
 
-	const MAX_LENGTH = 280;
+	let { onSent } = $props<{ onSent: (msg: App.Message) => void }>();
 
-	let { refresh } = $props<{ refresh: () => void }>();
 	let newMessage = $state('');
 	let error = $state('');
+	let isSubmitting = $state(false);
 
-	let remaining = $derived(MAX_LENGTH - newMessage.length);
-	let isOverLimit = $derived(newMessage.length > MAX_LENGTH);
-	let showCounter = $derived(newMessage.length >= MAX_LENGTH - 40);
+	let remaining = $derived(MAX_MESSAGE_LENGTH - newMessage.length);
+	let isOverLimit = $derived(newMessage.length > MAX_MESSAGE_LENGTH);
+	let showCounter = $derived(newMessage.length >= MAX_MESSAGE_LENGTH - 40);
 
 	async function sendMessage() {
+		if (!newMessage.trim() || isOverLimit || isSubmitting) return;
+
 		error = '';
+		isSubmitting = true;
 
-		if (!newMessage.trim()) return;
+		try {
+			const response = await pb.collection('messages').create({ body: newMessage.trim() });
 
-		// Backend guard — rejects even if maxlength was bypassed
-		if (newMessage.length > MAX_LENGTH) {
-			error = `Message must be ${MAX_LENGTH} characters or fewer.`;
-			return;
+			const newMsg: App.Message = {
+				id: response.id,
+				body: response['body'],
+				author: response['author'],
+				comments: [],
+				expand: { comments: [] },
+				created: response.created
+			};
+
+			newMessage = '';
+			onSent(newMsg);
+		} catch {
+			error = 'Failed to send message. Please try again.';
+		} finally {
+			isSubmitting = false;
 		}
-
-		const message = {
-			body: newMessage.trim(),
-			active: true,
-			author: window.navigator.userAgent,
-			created: new Date().toISOString()
-		};
-
-		const response = await pb.collection('messages').create(message);
-		if (!response) {
-			console.error('Failed to send message');
-			return;
-		}
-		newMessage = '';
-		refresh();
 	}
 </script>
 
@@ -51,12 +52,13 @@
 			<textarea
 				placeholder="Type your message here..."
 				bind:value={newMessage}
-				maxlength={MAX_LENGTH}
+				maxlength={MAX_MESSAGE_LENGTH}
 				rows={3}
+				disabled={isSubmitting}
 				class="w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 			></textarea>
 
-			<div class="flex items-center justify-between px-1">
+			<div class="flex items-center justify-between px-1 min-h-[1.25rem]">
 				{#if error}
 					<p class="text-xs text-destructive">{error}</p>
 				{:else}
@@ -79,8 +81,12 @@
 	</Card.Content>
 
 	<Card.Footer>
-		<Button onclick={sendMessage} class="w-full" disabled={isOverLimit || !newMessage.trim()}>
-			Send
+		<Button
+			onclick={sendMessage}
+			class="w-full"
+			disabled={isOverLimit || !newMessage.trim() || isSubmitting}
+		>
+			{isSubmitting ? 'Sending…' : 'Send'}
 		</Button>
 	</Card.Footer>
 </Card.Root>

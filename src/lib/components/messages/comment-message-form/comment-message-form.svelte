@@ -2,46 +2,52 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import pb from '$lib/pocketbase';
+	import { MAX_MESSAGE_LENGTH } from '$lib/constants';
 
-	const MAX_LENGTH = 280;
+	let { parentMessageId, onSuccess } = $props<{
+		parentMessageId: string;
+		onSuccess: (comment: App.Comment) => void;
+	}>();
 
-	let { parentMessageId, refresh } = $props<{ parentMessageId: string; refresh: () => void }>();
 	let commentBody = $state('');
+	let error = $state('');
+	let isSubmitting = $state(false);
 
-	let remaining = $derived(MAX_LENGTH - commentBody.length);
-	let isOverLimit = $derived(commentBody.length > MAX_LENGTH);
-	let showCounter = $derived(commentBody.length >= MAX_LENGTH - 40);
+	let remaining = $derived(MAX_MESSAGE_LENGTH - commentBody.length);
+	let isOverLimit = $derived(commentBody.length > MAX_MESSAGE_LENGTH);
+	let showCounter = $derived(commentBody.length >= MAX_MESSAGE_LENGTH - 40);
 
 	async function sendComment() {
-		if (!commentBody.trim()) return;
+		if (!commentBody.trim() || isOverLimit || isSubmitting) return;
 
-		// Backend guard — rejects even if maxlength was bypassed
-		if (commentBody.length > MAX_LENGTH) return;
+		error = '';
+		isSubmitting = true;
 
-		const comment = {
-			body: commentBody.trim(),
-			active: true,
-			author: window.navigator.userAgent,
-			message_id: parentMessageId,
-			created: new Date().toISOString()
-		};
+		try {
+			const responseComment = await pb.collection('comments').create({
+				body: commentBody.trim(),
+				message_id: parentMessageId
+			});
 
-		const responseComment = await pb.collection('comments').create(comment);
-		if (!responseComment) {
-			console.error('Failed to send comment');
-			return;
+			await pb.collection('messages').update(parentMessageId, {
+				'comments+': [responseComment.id]
+			});
+
+			const newComment: App.Comment = {
+				id: responseComment.id,
+				body: responseComment['body'],
+				author: responseComment['author'],
+				message_id: parentMessageId,
+				created: responseComment.created
+			};
+
+			commentBody = '';
+			onSuccess(newComment);
+		} catch {
+			error = 'Failed to send reply. Please try again.';
+		} finally {
+			isSubmitting = false;
 		}
-
-		const appended = await pb.collection('messages').update(parentMessageId, {
-			'comments+': [responseComment.id]
-		});
-		if (!appended) {
-			console.error('Failed to append comment to message');
-			return;
-		}
-
-		commentBody = '';
-		refresh();
 	}
 </script>
 
@@ -50,16 +56,17 @@
 		<Input
 			placeholder="Add a reply…"
 			bind:value={commentBody}
-			maxlength={MAX_LENGTH}
+			maxlength={MAX_MESSAGE_LENGTH}
+			disabled={isSubmitting}
 			class="font-mono text-sm"
 		/>
 		<Button
 			onclick={sendComment}
 			size="sm"
 			variant="outline"
-			disabled={isOverLimit || !commentBody.trim()}
+			disabled={isOverLimit || !commentBody.trim() || isSubmitting}
 		>
-			send
+			{isSubmitting ? '…' : 'send'}
 		</Button>
 	</div>
 
@@ -73,5 +80,9 @@
 		>
 			{remaining}
 		</span>
+	{/if}
+
+	{#if error}
+		<p class="text-xs text-destructive px-1">{error}</p>
 	{/if}
 </div>

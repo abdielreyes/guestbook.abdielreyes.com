@@ -2,11 +2,15 @@
 // for information about these interfaces
 declare global {
 	namespace App {
-		// interface Error {}
-		// interface Locals {}
-		// interface PageData {}
-		// interface PageState {}
-		// interface Platform {}
+		interface Comment {
+			id: string;
+			body: string;
+			author?: string;
+			message_id?: string;
+			active?: boolean;
+			created?: string;
+		}
+
 		interface Message {
 			id: string;
 			body: string;
@@ -14,7 +18,7 @@ declare global {
 			comments?: string[];
 			active?: boolean;
 			expand?: {
-				comments: Message[];
+				comments: Comment[];
 			};
 			created?: string;
 		}
