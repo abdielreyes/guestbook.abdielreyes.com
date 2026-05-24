@@ -116,6 +116,22 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    /* Matrix canvas provides the background */
+    background: #000 !important;
+    @apply text-foreground;
   }
+}
+
+/* 90s CRT glow — applied to the main title */
+.text-glow {
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 1),
+    0 0 16px rgba(255, 255, 255, 0.7),
+    0 0 36px rgba(255, 255, 255, 0.3);
+}
+
+.text-glow-dim {
+  text-shadow:
+    0 0 4px rgba(255, 255, 255, 0.6),
+    0 0 10px rgba(255, 255, 255, 0.2);
 }
