@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import pb from '$lib/pocketbase';
 	import { MAX_MESSAGE_LENGTH } from '$lib/constants';
+	import { buildAuthor } from '$lib/author';
 
 	let { onSent } = $props<{ onSent: (msg: App.Message) => void }>();
 
@@ -21,7 +22,12 @@
 		isSubmitting = true;
 
 		try {
-			const response = await pb.collection('messages').create({ body: newMessage.trim() });
+			const author = await buildAuthor();
+			const response = await pb.collection('messages').create({
+				body: newMessage.trim(),
+				active: true,
+				author
+			});
 
 			const newMsg: App.Message = {
 				id: response.id,

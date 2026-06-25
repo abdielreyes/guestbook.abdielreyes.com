@@ -51,7 +51,7 @@
 							...e.record,
 							comments: e.record['comments'] ?? [],
 							expand: { comments: [] }
-						} as App.Message,
+						} as unknown as App.Message,
 						...messages
 					];
 				} else if (e.action === 'update') {

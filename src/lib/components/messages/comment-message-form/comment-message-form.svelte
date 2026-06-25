@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import pb from '$lib/pocketbase';
 	import { MAX_MESSAGE_LENGTH } from '$lib/constants';
+	import { buildAuthor } from '$lib/author';
 
 	let { parentMessageId, onSuccess } = $props<{
 		parentMessageId: string;
@@ -24,9 +25,12 @@
 		isSubmitting = true;
 
 		try {
+			const author = await buildAuthor();
 			const responseComment = await pb.collection('comments').create({
 				body: commentBody.trim(),
-				message_id: parentMessageId
+				message_id: parentMessageId,
+				active: true,
+				author
 			});
 
 			await pb.collection('messages').update(parentMessageId, {
